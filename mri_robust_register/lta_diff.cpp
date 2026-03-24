@@ -385,9 +385,11 @@ double cornerdiff(LTA* lta1, bool vox2vox)
     LTAchangeType(lta1, LINEAR_RAS_TO_RAS);
   
 
-  VECTOR * v_X  = VectorAlloc(4, MATRIX_REAL); /* input (src) coordinates */
+  VECTOR * v_X  = VectorAlloc(4, MATRIX_REAL); /* input (src) voxel coordinates -- never overwritten */
+  VECTOR * v_XR = VectorAlloc(4, MATRIX_REAL); /* v_X converted to RAS (used only in non-vox2vox path) */
   VECTOR * v_Y1 = VectorAlloc(4, MATRIX_REAL); /* transformed (dst) coordinates */
   VECTOR_ELT(v_X,4) = 1;
+  VECTOR_ELT(v_XR,4)= 1;
   VECTOR_ELT(v_Y1,4)= 1;
 
   int y3, y2, y1;
@@ -407,27 +409,33 @@ double cornerdiff(LTA* lta1, bool vox2vox)
           MatrixMultiply(lta1->xforms[0].m_L, v_X, v_Y1);
         else
         {
-          //map corner to ras, map it with Ras2ras and compute distance
+          // Map corner voxel to RAS, apply RAS-to-RAS transform, then measure displacement.
+          // FIX: store the RAS-converted corner in v_XR (not back into v_X) so that
+          // v_X retains its voxel coordinates for the next loop iteration.
+          // Previously "MatrixMultiply(mv2r, v_X, v_X)" overwrote v_X in-place, corrupting
+          // V3_Y and V3_Z for all subsequent corners in the same y2/y3 iteration.
           MATRIX * mv2r = vg_i_to_r(&lta1->xforms[0].src);
-          MatrixMultiply(mv2r, v_X, v_X);
-          MatrixMultiply(lta1->xforms[0].m_L, v_X, v_Y1);
+          MatrixMultiply(mv2r, v_X, v_XR);
+          MatrixMultiply(lta1->xforms[0].m_L, v_XR, v_Y1);
           MatrixFree(&mv2r);
-        }  
-          
-        double d1 = V3_X(v_Y1) - V3_X(v_X);
-        double d2 = V3_Y(v_Y1) - V3_Y(v_X);
-        double d3 = V3_Z(v_Y1) - V3_Z(v_X);
+        }
+
+        // Reference point: RAS position of the (untransformed) corner
+        const VECTOR * v_ref = vox2vox ? v_X : v_XR;
+        double d1 = V3_X(v_Y1) - V3_X(v_ref);
+        double d2 = V3_Y(v_Y1) - V3_Y(v_ref);
+        double d3 = V3_Z(v_Y1) - V3_Z(v_ref);
         double dd = sqrt(d1*d1 + d2*d2 + d3*d3);
         //cout << " dd: " << dd << endl;
         if ( dd > dmax) dmax = dd;
         d += dd;
         //cout << " corner : " << V3_X(v_X) << " , " <<  V3_Y(v_X) << " , " <<  V3_Z(v_X) << endl;
         //cout << "   mapped to "<< V3_X(v_Y1) << " , " <<  V3_Y(v_Y1) << " , " <<  V3_Z(v_Y1) << endl;
-        //cout << "   mapped to "<< V3_X(v_Y2) << " , " <<  V3_Y(v_Y2) << " , " <<  V3_Z(v_Y2) << endl;
       }
     }
   }
   VectorFree(&v_X);
+  VectorFree(&v_XR);
   VectorFree(&v_Y1);
   cout << " dmax: " << dmax << endl;
   return d / 8.0;
