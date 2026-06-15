@@ -40,9 +40,18 @@ include(CheckFunctionExists)
 ## Use host_os() to get HOST_OS to reference the correct 3rd party package build
 host_os()
 
-project(freesurfer 
+if(NOT DEFINED BUILD_FORTRAN)
+  set(BUILD_FORTRAN ON)
+endif()
+
+set(FREESURFER_LANGUAGES C CXX)
+if(BUILD_FORTRAN)
+  list(APPEND FREESURFER_LANGUAGES Fortran)
+endif()
+
+project(freesurfer
   DESCRIPTION "An open source software suite for processing and analyzing (human) brain MRI images."
-  LANGUAGES C CXX Fortran
+  LANGUAGES ${FREESURFER_LANGUAGES}
 )
 
 # --------------------------------------------------
@@ -154,8 +163,23 @@ if(DISTRIBUTE_FSPYTHON)
       message(FATAL_ERROR "For HOST_OS=${HOST_OS} cannot stat FSPYTHON_DIR=${FSPYTHON_DIR}")
    endif()
 else()
-   ## allow cmake to use fspython python3 binary even if not distributing fspython, e.g., darwin_arm64 build
-   set(PYTHON_EXECUTABLE "${FS_PACKAGES_DIR}/fspython/${FSPYTHON_VERSION}/bin/python${FSPYTHON_VERSION}")
+   ## allow cmake to use an external python binary when fspython is not being distributed
+   if(PYTHON_EXECUTABLE)
+      message(STATUS "For HOST_OS=${HOST_OS} using user-defined PYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}")
+   else()
+      set(_default_python_executable "${FS_PACKAGES_DIR}/fspython/${FSPYTHON_VERSION}/bin/python${FSPYTHON_VERSION}")
+      if(EXISTS "${_default_python_executable}")
+         set(PYTHON_EXECUTABLE "${_default_python_executable}")
+         message(STATUS "For HOST_OS=${HOST_OS} using packaged PYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}")
+      else()
+         find_program(PYTHON_EXECUTABLE NAMES python${FSPYTHON_VERSION} python3 python)
+         if(PYTHON_EXECUTABLE)
+            message(STATUS "For HOST_OS=${HOST_OS} using external PYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}")
+         else()
+            message(FATAL_ERROR "For HOST_OS=${HOST_OS} could not find a usable python interpreter. Set PYTHON_EXECUTABLE or provide ${_default_python_executable}")
+         endif()
+      endif()
+   endif()
 endif()
 
 ## cuda
