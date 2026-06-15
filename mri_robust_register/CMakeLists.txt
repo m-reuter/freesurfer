@@ -12,7 +12,11 @@ endif()
 
 include_directories(${FS_INCLUDE_DIRS})
 
-set(FORTRAN_LIBS ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} ${GFORTRAN_LIBRARIES} ${QUADMATH_LIBRARIES})
+if(APPLE)
+  set(FORTRAN_LIBS)
+else()
+  set(FORTRAN_LIBS ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} ${GFORTRAN_LIBRARIES} ${QUADMATH_LIBRARIES})
+endif()
 
 # mri_robust_register
 add_executable(
